@@ -12,7 +12,7 @@ exports.getAll = (req, res) => {
     }
     res.status(200).send({
       success: true,
-      message: "succed!",
+      message: "succeed!",
       data: posts,
     });
   });
@@ -29,7 +29,7 @@ exports.getById = (req, res) => {
     }
     res.status(200).send({
       success: true,
-      message: "succed!",
+      message: "succeed!",
       data: post,
     });
   });
@@ -50,7 +50,7 @@ exports.create = (req, res) => {
     }
     res.status(200).send({
       success: true,
-      message: "succed!",
+      message: "succeed!",
       data: post,
     });
   });
@@ -85,7 +85,7 @@ exports.update = (req, res) => {
 
     res.status(200).send({
       success: true,
-      message: "succed!",
+      message: "succeed!",
       data: {
         _id: post._id,
         title: req.body.title,
@@ -106,7 +106,7 @@ exports.delete = (req, res) => {
     }
     res.status(200).send({
       success: true,
-      message: "succed!",
+      message: "succeed!",
       data: post,
     });
   });

@@ -38,6 +38,8 @@ app.get("/", (req, res) => {
   res.send("nothing");
 });
 require("./src/routes/post.routes")(app);
+require("./src/routes/auth.routes")(app);
+require("./src/routes/user.routes")(app);
 
 // starting the server
 app.listen(PORT, () => {
