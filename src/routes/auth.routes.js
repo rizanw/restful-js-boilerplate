@@ -16,7 +16,7 @@ module.exports = function (app) {
 
   app.post(
     `${apiUri}/register`,
-    [verifyRegister.checkDuplicateEmail],
+    [verifyRegister.checkDuplicateEmail, verifyRegister.checkRolesExisted],
     controller.register
   );
   app.post(`${apiUri}/login`, controller.login);

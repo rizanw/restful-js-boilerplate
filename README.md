@@ -3,8 +3,10 @@
 > This repository is containing free to use boilerplate!
 
 ### ChangeLog
-> 2021/02/05
-- add secure auth sample
+> 2021/02/12   
+- add multi-roles / authorization     
+> 2021/02/05   
+- add secure auth sample   
 - add jwt
 - add midlleware   
 > 2021/02/04   
