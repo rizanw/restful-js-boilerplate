@@ -8,9 +8,16 @@ const startMongo = require("./src/db/mongo");
 // main config
 require("dotenv").config();
 const PORT = process.env.APP_PORT || 8080;
-const URL = process.env.APP_URL || "http://localhost";
+const URL = process.env.APP_URL || "0.0.0.0";
+var whitelistOrigins = [`${URL}:${PORT}`, `${URL}:${PORT}`, "0.0.0.0"];
 const corsOptions = {
-  origin: `${URL}:${PORT}`,
+  origin: function (origin, callback) {
+    if (whitelistOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(new Error("Not allowed by CORS"));
+    }
+  },
 };
 
 // start db
