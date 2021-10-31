@@ -1,4 +1,5 @@
 const db = require("../models");
+const logger = require("../utils/logger");
 const Role = db.role;
 
 const startMongo = db.mongoose
@@ -7,11 +8,12 @@ const startMongo = db.mongoose
     useUnifiedTopology: true,
   })
   .then(() => {
-    console.log("⚡️[server]: Connected to the database!");
+    logger.info("⚡️[server]: Connected to the database!");
     initial();
   })
   .catch((err) => {
-    console.log("⚡️[server]: Cannot connect to the database!", err);
+    logger.error("⚡️[server]: Cannot connect to the database!");
+    logger.verbose(err);
     process.exit();
   });
 
@@ -23,20 +25,20 @@ function initial() {
         name: "superuser",
       }).save((err) => {
         if (err) {
-          console.log("⚡️[mongo]: error", err);
+          logger.error("⚡️[mongo]: " + err);
         }
 
-        console.log("⚡️[mongo]: added 'superuser' to roles collection");
+        logger.info("⚡️[mongo]: added 'superuser' to roles collection");
       });
 
       new Role({
         name: "user",
       }).save((err) => {
         if (err) {
-          console.log("⚡️[mongo]: error", err);
+          logger.error("⚡️[mongo]: " + err);
         }
 
-        console.log("⚡️[mongo]: added 'user' to roles collection");
+        logger.info("⚡️[mongo]: added 'user' to roles collection");
       });
     }
   });

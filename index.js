@@ -4,6 +4,7 @@ const cors = require("cors");
 const helmet = require("helmet");
 const morgan = require("morgan");
 const startMongo = require("./src/db/mongo");
+const logger = require("./src/utils/logger");
 
 // main config
 require("dotenv").config();
@@ -50,5 +51,5 @@ require("./src/routes/user.routes")(app);
 
 // starting the server
 app.listen(PORT, () => {
-  console.log(`⚡️[server]: Server is running at ${URL}:${PORT}`);
+  logger.info(`⚡️[server]: Server is running at ${URL}:${PORT}`);
 });

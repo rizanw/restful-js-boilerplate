@@ -13,8 +13,9 @@ const verifyToken = (req, res, next) => {
     if (err) {
       return res.status(401).send({ message: "Unauthenticated!" });
     }
+
     req.userId = decoded.id;
-    console.log(decoded);
+    
     next();
   });
 };

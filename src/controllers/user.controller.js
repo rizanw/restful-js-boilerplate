@@ -12,7 +12,7 @@ exports.getProfile = (req, res) => {
       });
       return;
     }
-    console.log(user);
+
     res.status(200).send({
       success: true,
       message: "succeed!",
