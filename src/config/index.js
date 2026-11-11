@@ -1,7 +1,5 @@
-const api = require("./api.config");
-const auth = require("./auth.config");
-
 module.exports = {
-  api,
-  auth,
+  app: require("./app.config"),
+  api: require("./api.config"),
+  auth: require("./auth.config"),
 };

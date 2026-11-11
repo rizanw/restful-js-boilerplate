@@ -1,45 +1,29 @@
 const db = require("../models");
+const asyncHandler = require("../utils/asyncHandler");
+
 const User = db.user;
-const ROLES = db.ROLES;
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-const checkDuplicateEmail = (req, res, next) => {
-  User.findOne({
-    email: req.body.email,
-  }).exec((err, user) => {
-    if (err) {
-      res.status(500).send({ message: err });
-      return;
-    }
-
-    if (user) {
-      res
-        .status(400)
-        .send({ success: false, message: "Failed! Email is already in use!" });
-      return;
-    }
-
-    next();
-  });
-};
-
-const checkRolesExisted = (req, res, next) => {
-  if (req.body.roles) {
-    for (let i = 0; i < req.body.roles.length; i++) {
-      if (!ROLES.includes(req.body.roles[i])) {
-        res.status(400).send({
-          message: `Failed! Role ${req.body.roles[i]} does not exist!`,
-        });
-        return;
-      }
-    }
+const validateRegister = (req, res, next) => {
+  const { name, email, password } = req.body;
+  if (!name || !email || !password) {
+    return res.status(400).send({ success: false, message: "name, email, and password are required." });
   }
-
+  if (!EMAIL_PATTERN.test(email)) {
+    return res.status(400).send({ success: false, message: "Invalid email address." });
+  }
+  if (String(password).length < 8) {
+    return res.status(400).send({ success: false, message: "Password must be at least 8 characters." });
+  }
   next();
 };
 
-const verifyRegister = {
-  checkDuplicateEmail,
-  checkRolesExisted,
-};
+const checkDuplicateEmail = asyncHandler(async (req, res, next) => {
+  const exists = await User.exists({ email: String(req.body.email).toLowerCase() });
+  if (exists) {
+    return res.status(409).send({ success: false, message: "Failed! Email is already in use!" });
+  }
+  next();
+});
 
-module.exports = verifyRegister;
+module.exports = { validateRegister, checkDuplicateEmail, EMAIL_PATTERN };

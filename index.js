@@ -1,55 +1,53 @@
+require("dotenv").config();
+
 const express = require("express");
-const bodyParser = require("body-parser");
 const cors = require("cors");
 const helmet = require("helmet");
 const morgan = require("morgan");
-const startMongo = require("./src/db/mongo");
+
+const config = require("./src/config");
+const { connectMongo } = require("./src/db/mongo");
+const { notFound, errorHandler } = require("./src/middlewares/errorHandler");
 const logger = require("./src/utils/logger");
 
-// main config
-require("dotenv").config();
-const PORT = process.env.APP_PORT || 8080;
-const URL = process.env.APP_URL || "0.0.0.0";
-var whitelistOrigins = [`${URL}:${PORT}`, `${URL}:${PORT}`, "0.0.0.0"];
-const corsOptions = {
-  origin: function (origin, callback) {
-    if (whitelistOrigins.indexOf(origin) !== -1) {
-      callback(null, true);
-    } else {
-      callback(new Error("Not allowed by CORS"));
-    }
-  },
-};
-
-// start db
-startMongo;
-
-// init server
 const app = express();
 
-// adding Helmet to enhance your API's security
+// secure HTTP headers
 app.use(helmet());
 
-// using bodyParser to parse JSON bodies into JS objects
-app.use(bodyParser.json());
-// parse requests of content-type - application/x-www-form-urlencoded
-app.use(bodyParser.urlencoded({ extended: true }));
+// parse JSON and URL-encoded bodies
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
-// enabling CORS for all requests
-app.use(cors(corsOptions));
+// CORS: allow configured browser origins, and requests without an Origin
+// header (curl, Postman, server-to-server)
+app.use(
+  cors({
+    origin(origin, callback) {
+      if (!origin || config.app.corsOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+      return callback(null, false);
+    },
+  })
+);
 
-// adding morgan to log HTTP requests
-app.use(morgan("combined"));
+// HTTP request logging
+app.use(morgan("combined", { stream: { write: (msg) => logger.http(msg.trim()) } }));
 
-// Your route here:
 app.get("/", (req, res) => {
-  res.send("nothing");
+  res.send({ success: true, message: `${config.app.name} is running` });
 });
-require("./src/routes/post.routes")(app);
+
 require("./src/routes/auth.routes")(app);
+require("./src/routes/post.routes")(app);
 require("./src/routes/user.routes")(app);
 
-// starting the server
-app.listen(PORT, () => {
-  logger.info(`⚡️[server]: Server is running at ${URL}:${PORT}`);
+app.use(notFound);
+app.use(errorHandler);
+
+connectMongo().then(() => {
+  app.listen(config.app.port, () => {
+    logger.info(`⚡️[server]: Server is running at ${config.app.url}:${config.app.port}`);
+  });
 });

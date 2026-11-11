@@ -1,47 +1,39 @@
+const config = require("../config");
 const db = require("../models");
 const logger = require("../utils/logger");
+
 const Role = db.role;
+const User = db.user;
 
-const startMongo = db.mongoose
-  .connect(db.url, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-  })
-  .then(() => {
+async function connectMongo() {
+  try {
+    await db.mongoose.connect(db.url);
     logger.info("⚡️[server]: Connected to the database!");
-    initial();
-  })
-  .catch((err) => {
-    logger.error("⚡️[server]: Cannot connect to the database!");
-    logger.verbose(err);
-    process.exit();
-  });
-
-function initial() {
-  //initial data
-  Role.estimatedDocumentCount((err, count) => {
-    if (!err && count === 0) {
-      new Role({
-        name: "superuser",
-      }).save((err) => {
-        if (err) {
-          logger.error("⚡️[mongo]: " + err);
-        }
-
-        logger.info("⚡️[mongo]: added 'superuser' to roles collection");
-      });
-
-      new Role({
-        name: "user",
-      }).save((err) => {
-        if (err) {
-          logger.error("⚡️[mongo]: " + err);
-        }
-
-        logger.info("⚡️[mongo]: added 'user' to roles collection");
-      });
-    }
-  });
+    await seedRoles();
+    await promoteSuperusers();
+  } catch (err) {
+    logger.error(`⚡️[server]: Cannot connect to the database! ${err.message}`);
+    process.exit(1);
+  }
 }
 
-module.exports = startMongo;
+// create the declared roles if they don't exist yet
+async function seedRoles() {
+  for (const name of db.ROLES) {
+    const result = await Role.updateOne({ name }, { $setOnInsert: { name } }, { upsert: true });
+    if (result.upsertedCount) logger.info(`⚡️[mongo]: added '${name}' to roles collection`);
+  }
+}
+
+// give the superuser role to existing accounts listed in SUPERUSER_EMAILS
+async function promoteSuperusers() {
+  if (!config.auth.superuserEmails.length) return;
+  const superuser = await Role.findOne({ name: "superuser" });
+  const result = await User.updateMany(
+    { email: { $in: config.auth.superuserEmails } },
+    { $addToSet: { roles: superuser._id } }
+  );
+  if (result.modifiedCount) logger.info(`⚡️[mongo]: promoted ${result.modifiedCount} user(s) to superuser`);
+}
+
+module.exports = { connectMongo };

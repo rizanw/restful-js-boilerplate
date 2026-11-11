@@ -1,145 +1,95 @@
+const bcrypt = require("bcryptjs");
+const config = require("../config");
 const db = require("../models");
+const { EMAIL_PATTERN } = require("../middlewares/verifyRegister");
+const asyncHandler = require("../utils/asyncHandler");
+
 const User = db.user;
-const { SHA3 } = require("sha3");
-const hash = new SHA3(512);
+const Role = db.role;
 
-exports.getProfile = (req, res) => {
-  User.findOne({ _id: req.userId }, (err, user) => {
-    if (err) {
-      res.status(500).send({
-        success: false,
-        message: err,
-      });
-      return;
-    }
+const profile = (user) => ({
+  id: user.id,
+  name: user.name,
+  email: user.email,
+  roles: user.roles.map((role) => role.name ?? role),
+});
 
-    res.status(200).send({
-      success: true,
-      message: "succeed!",
-      data: {
-        name: user.name,
-        email: user.email,
-      },
+const findWithPassword = (id) => User.findById(id).select("+password").populate("roles", "name");
+
+exports.getProfile = asyncHandler(async (req, res) => {
+  const user = await User.findById(req.userId).populate("roles", "name");
+  if (!user) return res.status(404).send({ success: false, message: "User not found." });
+  res.status(200).send({ success: true, message: "succeed!", data: profile(user) });
+});
+
+exports.updateEmail = asyncHandler(async (req, res) => {
+  const email = String(req.body.email || "").toLowerCase().trim();
+  if (!EMAIL_PATTERN.test(email)) {
+    return res.status(400).send({ success: false, message: "A valid email is required." });
+  }
+  if (await User.exists({ email, _id: { $ne: req.userId } })) {
+    return res.status(409).send({ success: false, message: "Email is already in use!" });
+  }
+
+  const user = await User.findById(req.userId).populate("roles", "name");
+  if (!user) return res.status(404).send({ success: false, message: "User not found." });
+  user.email = email;
+  await user.save();
+
+  res.status(200).send({ success: true, message: "email has been changed!", data: profile(user) });
+});
+
+exports.updatePassword = asyncHandler(async (req, res) => {
+  const { oldPassword, newPassword } = req.body;
+  if (!oldPassword || !newPassword || String(newPassword).length < 8) {
+    return res.status(400).send({
+      success: false,
+      message: "oldPassword and newPassword (at least 8 characters) are required.",
     });
-  });
-};
+  }
 
-exports.updateEmail = (req, res) => {
-  User.findOne({ _id: req.userId }, (err, user) => {
-    if (err) {
-      res.status(500).send({
-        success: false,
-        message: err,
-      });
-      return;
-    }
+  const user = await findWithPassword(req.userId);
+  if (!user || !(await bcrypt.compare(String(oldPassword), user.password))) {
+    return res.status(401).send({ success: false, message: "Invalid old password!" });
+  }
 
-    // change the email
-    if (req.body.email) {
-      user.title = req.body.email;
-    }
+  user.password = await bcrypt.hash(String(newPassword), config.auth.saltRounds);
+  await user.save();
 
-    // save changed
-    user.save((err) => {
-      if (err) {
-        res.status(500).send({
-          success: false,
-          message: err,
-        });
-        return;
-      }
-    });
+  res.status(200).send({ success: true, message: "password has been changed!", data: profile(user) });
+});
 
-    res.status(200).send({
-      success: true,
-      message: "email has been changed!",
-      data: {
-        name: user.name,
-        email: user.email,
-      },
-    });
-  });
-};
+// Checks the password first, then deletes the account.
+exports.deleteAccount = asyncHandler(async (req, res) => {
+  const user = await findWithPassword(req.userId);
+  if (!user || !(await bcrypt.compare(String(req.body.password || ""), user.password))) {
+    return res.status(401).send({ success: false, message: "Invalid password!" });
+  }
 
-exports.updatePassword = (req, res) => {
-  User.findOne({ _id: req.userId }, (err, user) => {
-    if (err) {
-      res.status(500).send({
-        success: false,
-        message: err,
-      });
-      return;
-    }
+  await user.deleteOne();
+  res.status(200).send({ success: true, message: "account deleted.", data: { accessToken: null } });
+});
 
-    // check whatever old password is valid or not
-    var passwordIsValid =
-      hash.update(req.body.oldPassword).digest("hex") == user.password;
-    hash.reset();
-    if (!passwordIsValid) {
-      return res.status(401).send({
-        success: false,
-        message: "Invalid Old Password!",
-      });
-    }
+// --- superuser only ---------------------------------------------------------
 
-    // change the password
-    if (req.body.newPassword) {
-      user.password = hash.update(req.body.newPassword).digest("hex");
-      hash.reset();
-    }
+exports.listUsers = asyncHandler(async (req, res) => {
+  const users = await User.find().populate("roles", "name").sort({ createdAt: -1 });
+  res.status(200).send({ success: true, message: "succeed!", data: users.map(profile) });
+});
 
-    // save changed
-    user.save((err) => {
-      if (err) {
-        res.status(500).send({
-          success: false,
-          message: err,
-        });
-        return;
-      }
-    });
+exports.setRoles = asyncHandler(async (req, res) => {
+  const names = req.body.roles;
+  if (!Array.isArray(names) || names.length === 0 || !names.every((n) => db.ROLES.includes(n))) {
+    return res.status(400).send({ success: false, message: `roles must be a non-empty array of: ${db.ROLES.join(", ")}` });
+  }
 
-    res.status(200).send({
-      success: true,
-      message: "password has been changed!",
-      data: {
-        name: user.name,
-        email: user.email,
-      },
-    });
-  });
-};
+  const roles = await Role.find({ name: { $in: names } });
+  const user = await User.findByIdAndUpdate(
+    req.params.id,
+    { roles: roles.map((role) => role._id) },
+    { new: true }
+  ).populate("roles", "name");
+  if (!user) return res.status(404).send({ success: false, message: "User not found." });
 
-exports.deleteAccount = (req, res) => {
-  User.deleteOne({ _id: req.userId }, (err, user) => {
-    if (err) {
-      res.status(500).send({
-        success: false,
-        message: err,
-      });
-      return;
-    }
-
-    // check whatever entered password is valid or not
-    var passwordIsValid =
-      hash.update(req.body.password).digest("hex") == user.password;
-    hash.reset();
-    if (!passwordIsValid) {
-      return res.status(401).send({
-        success: false,
-        message: "Invalid Password!",
-        data: {
-          accessToken: null,
-        },
-      });
-    }
-    
-    res.status(200).send({
-      success: true,
-      message: "succeed!",
-      data: {
-        accessToken: null,
-      },
-    });
-  });
-};
+  res.status(200).send({ success: true, message: "roles updated.", data: profile(user) });
+});

@@ -1,22 +1,14 @@
 const controller = require("../controllers/post.controller");
-const { authJwt } = require("../middlewares");
-require("dotenv").config();
 const config = require("../config");
+const { authJwt } = require("../middlewares");
 
 const apiUri = config.api.uri;
+const { verifyToken, loadRoles } = authJwt;
 
 module.exports = function (app) {
-  app.use(function (req, res, next) {
-    res.header(
-      "Access-Control-Allow-Headers",
-      "x-access-token, Origin, Content-Type, Accept"
-    );
-    next();
-  });
-
   app.get(`${apiUri}/posts`, controller.getAll);
   app.get(`${apiUri}/post/:id`, controller.getById);
-  app.post(`${apiUri}/post`, [authJwt.verifyToken], controller.create);
-  app.patch(`${apiUri}/post/:id`, [authJwt.verifyToken], controller.update);
-  app.delete(`${apiUri}/post/:id`, [authJwt.verifyToken], controller.delete);
+  app.post(`${apiUri}/post`, [verifyToken], controller.create);
+  app.patch(`${apiUri}/post/:id`, [verifyToken, loadRoles], controller.update);
+  app.delete(`${apiUri}/post/:id`, [verifyToken, loadRoles], controller.delete);
 };

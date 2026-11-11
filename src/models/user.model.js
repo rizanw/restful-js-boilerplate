@@ -1,24 +1,21 @@
 module.exports = (mongoose) => {
-  const schema = mongoose.Schema(
+  const schema = new mongoose.Schema(
     {
-      name: String,
-      email: String,
-      password: String,
-      roles: [
-        {
-          type: mongoose.Schema.Types.ObjectId,
-          ref: "Role",
-        },
-      ],
+      name: { type: String, required: true, trim: true },
+      email: { type: String, required: true, unique: true, lowercase: true, trim: true },
+      password: { type: String, required: true, select: false },
+      roles: [{ type: mongoose.Schema.Types.ObjectId, ref: "Role" }],
     },
-    { timestamps: true }
+    {
+      timestamps: true,
+      // expose `id` instead of `_id`, and never the password hash
+      toJSON: {
+        transform(doc, { _id, __v, password, ...object }) {
+          return { id: _id, ...object };
+        },
+      },
+    }
   );
-
-  schema.method("toJSON", function () {
-    const { __v, _id, ...object } = this.toObject();
-    object.id = _id;
-    return object;
-  });
 
   return mongoose.model("User", schema);
 };

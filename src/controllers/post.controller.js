@@ -1,113 +1,55 @@
 const db = require("../models");
+const asyncHandler = require("../utils/asyncHandler");
+
 const Post = db.post;
 
-exports.getAll = (req, res) => {
-  Post.find({}, (err, posts) => {
-    if (err) {
-      res.status(500).send({
-        success: false,
-        message: err,
-      });
-      return;
-    }
-    res.status(200).send({
-      success: true,
-      message: "succeed!",
-      data: posts,
-    });
-  });
-};
+const notFound = (res) => res.status(404).send({ success: false, message: "Post not found." });
 
-exports.getById = (req, res) => {
-  Post.findOne({ _id: req.params.id }, (err, post) => {
-    if (err) {
-      res.status(500).send({
-        success: false,
-        message: err,
-      });
-      return;
-    }
-    res.status(200).send({
-      success: true,
-      message: "succeed!",
-      data: post,
-    });
-  });
-};
+// Only the author or a superuser may change a post.
+const canModify = (req, post) =>
+  post.author.equals(req.userId) || req.userRoles.includes("superuser");
 
-exports.create = (req, res) => {
-  const post = new Post({
+exports.getAll = asyncHandler(async (req, res) => {
+  const posts = await Post.find().sort({ createdAt: -1 }).populate("author", "name");
+  res.status(200).send({ success: true, message: "succeed!", data: posts });
+});
+
+exports.getById = asyncHandler(async (req, res) => {
+  const post = await Post.findById(req.params.id).populate("author", "name");
+  if (!post) return notFound(res);
+  res.status(200).send({ success: true, message: "succeed!", data: post });
+});
+
+exports.create = asyncHandler(async (req, res) => {
+  const post = await Post.create({
     title: req.body.title,
     content: req.body.content,
+    author: req.userId,
   });
-  post.save((err, user) => {
-    if (err) {
-      res.status(500).send({
-        success: false,
-        message: err,
-      });
-      return;
-    }
-    res.status(200).send({
-      success: true,
-      message: "succeed!",
-      data: post,
-    });
-  });
-};
+  res.status(201).send({ success: true, message: "succeed!", data: post });
+});
 
-exports.update = (req, res) => {
-  Post.findOne({ _id: req.params.id }, (err, post) => {
-    if (err) {
-      res.status(500).send({
-        success: false,
-        message: err,
-      });
-      return;
-    }
+exports.update = asyncHandler(async (req, res) => {
+  const post = await Post.findById(req.params.id);
+  if (!post) return notFound(res);
+  if (!canModify(req, post)) {
+    return res.status(403).send({ success: false, message: "You can only edit your own posts." });
+  }
 
-    if (req.body.title) {
-      post.title = req.body.title;
-    }
-    if (req.body.content) {
-      post.content = req.body.content;
-    }
+  if (req.body.title !== undefined) post.title = req.body.title;
+  if (req.body.content !== undefined) post.content = req.body.content;
+  await post.save();
 
-    post.save((err) => {
-      if (err) {
-        res.status(500).send({
-          success: false,
-          message: err,
-        });
-        return;
-      }
-    });
+  res.status(200).send({ success: true, message: "succeed!", data: post });
+});
 
-    res.status(200).send({
-      success: true,
-      message: "succeed!",
-      data: {
-        _id: post._id,
-        title: req.body.title,
-        content: req.body.content,
-      },
-    });
-  });
-};
+exports.delete = asyncHandler(async (req, res) => {
+  const post = await Post.findById(req.params.id);
+  if (!post) return notFound(res);
+  if (!canModify(req, post)) {
+    return res.status(403).send({ success: false, message: "You can only delete your own posts." });
+  }
 
-exports.delete = (req, res) => {
-  Post.deleteOne({ _id: req.params.id }, (err, post) => {
-    if (err) {
-      res.status(500).send({
-        success: false,
-        message: err,
-      });
-      return;
-    }
-    res.status(200).send({
-      success: true,
-      message: "succeed!",
-      data: post,
-    });
-  });
-};
+  await post.deleteOne();
+  res.status(200).send({ success: true, message: "succeed!", data: { id: post.id } });
+});
